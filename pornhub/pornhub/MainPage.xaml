@@ -1,0 +1,11 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://xamarin.com/schemas/2014/forms"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="pornhub.MainPage">
+    <StackLayout>
+        <Button x:Name="m_copyUri"
+                Text="将代理Uri复制到剪贴板"></Button>
+        <Button Text="打开浏览器"
+                Clicked="OnOpenBrowser"></Button>
+    </StackLayout>
+</ContentPage>
