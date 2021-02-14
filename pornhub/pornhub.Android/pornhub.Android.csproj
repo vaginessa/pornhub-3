@@ -74,6 +74,8 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <AndroidAsset Include="Assets\main.com.pfx" />
+    <AndroidAsset Include="Assets\myCA.crt" />
     <None Include="Resources\AboutResources.txt" />
     <None Include="Assets\AboutAssets.txt" />
     <None Include="Properties\AndroidManifest.xml" />
@@ -112,6 +114,9 @@
     <AndroidAsset Include="Assets\ad_video.mp4">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </AndroidAsset>
+  </ItemGroup>
+  <ItemGroup>
+    <AndroidAsset Include="Assets\CA密码0000.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath)\Xamarin\Android\Xamarin.Android.CSharp.targets" />
 </Project>
