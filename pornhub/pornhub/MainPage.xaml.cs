@@ -132,11 +132,27 @@ namespace pornhub
             PornhubProxyServer server = new PornhubProxyServer(info);
 
 
-            Task t = server.Start(endPoint);
+            server.Start(endPoint);
 
             m_copyCaCer.Clicked += (obj, e) =>
             {
-                File.WriteAllBytes(Path.Combine(source.RootPath, "pornhubCa.crt"), source.CaCer);
+                Permissions.RequestAsync<Permissions.StorageWrite>()
+                .ContinueWith((task) =>
+                {
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        if (task.Result == PermissionStatus.Granted)
+                        {
+
+                            File.WriteAllBytes(Path.Combine(source.RootPath, "pornhubCa.crt"), source.CaCer);
+                        }
+                        else
+                        {
+                            DisplayAlert("消息", "没有存储权限导出失败", "确定");
+                        }
+                    });
+                });
+
             };
 
             m_copyUri.Clicked += (obj, e) =>
