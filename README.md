@@ -1,3 +1,5 @@
+用到我自己的一个库 https://github.com/LeiKaiFeng-GoodBoy/LeiKaiFeng.Http
+
 不一定有人看到,我也懒
 使用方法
 
