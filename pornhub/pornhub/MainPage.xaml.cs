@@ -165,5 +165,10 @@ namespace pornhub
         {
             Browser.OpenAsync("https://cn.pornhub.com/", BrowserLaunchMode.SystemPreferred);
         }
+
+        void OnOpenBrowser_Anime(object sender, EventArgs e)
+        {
+            Browser.OpenAsync("https://hanime.xxx/", BrowserLaunchMode.SystemPreferred);
+        }
     }
 }

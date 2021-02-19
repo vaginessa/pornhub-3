@@ -9,5 +9,7 @@
                 Text="将代理Uri复制到剪贴板"></Button>
         <Button Text="打开浏览器"
                 Clicked="OnOpenBrowser"></Button>
+        <Button Text="打开浏览器(动漫专题网站)"
+                Clicked="OnOpenBrowser_Anime"></Button>
     </StackLayout>
 </ContentPage>
