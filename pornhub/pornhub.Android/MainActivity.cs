@@ -55,11 +55,11 @@ namespace pornhub.Droid
             {
                 AdVideo = ReadAllBytes(() => assets.Open("ad_video.mp4")),
 
-                AdPageCer = ReadAllBytes(() => assets.Open("adtng.com.pfx")),
+                AdPageCer = ReadAllBytes(() => assets.Open("ad.com.pfx")),
 
                 MainPageCer = ReadAllBytes(() => assets.Open("main.com.pfx")),
 
-                CaCer = ReadAllBytes(() => assets.Open("myCA.crt")),
+                CaCer = ReadAllBytes(() => assets.Open("myCA.pfx")),
 
                 RootPath = Android.OS.Environment.ExternalStorageDirectory.AbsolutePath
             };

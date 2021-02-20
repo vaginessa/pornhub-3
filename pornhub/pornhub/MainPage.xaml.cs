@@ -144,7 +144,7 @@ namespace pornhub
                         if (task.Result == PermissionStatus.Granted)
                         {
 
-                            File.WriteAllBytes(Path.Combine(source.RootPath, "pornhubCa.crt"), source.CaCer);
+                            File.WriteAllBytes(Path.Combine(source.RootPath, "pornhubCa.crt"), new X509Certificate2(source.CaCer, string.Empty, X509KeyStorageFlags.Exportable).Export(X509ContentType.Cert));
                         }
                         else
                         {
