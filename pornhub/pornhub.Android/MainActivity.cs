@@ -18,18 +18,26 @@ using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Security.Cryptography.X509Certificates;
 using AndroidX.Core.App;
+using System.Linq;
 
 namespace pornhub.Droid
 {
 
 
-    public sealed class Source
+    public static class ServerInfo
     {
-        public byte[] AdPageCer { get; set; }
+        public static byte[] AdPageCer { get; set; }
 
-        public byte[] AdVideo { get; set; }
+        public static byte[] AdVideo { get; set; }
 
-        public byte[] MainPageCer { get; set; }
+        public static byte[] MainPageCer { get; set; }
+
+
+        public static IPEndPoint PacServer { get; set; }
+
+        public static IPEndPoint ProxyServer { get; set; }
+
+        public static IPEndPoint ExportPacServer { get; set; }
     }
 
 
@@ -126,54 +134,29 @@ namespace pornhub.Droid
             });
 
             StartProxy();
-
-
         }
-
-
-        [return: GeneratedEnum]
-        public override StartCommandResult OnStartCommand(Intent intent, [GeneratedEnum] StartCommandFlags flags, int startId)
-        {
-
-
-            return StartCommandResult.NotSticky;
-        }
-
-
-        
-
 
         void StartProxy()
         {
-            var assets = this.Assets;
+            
 
-            Source source = new Source
-            {
-                AdVideo = MainActivity.ReadAllBytes(() => assets.Open("ad_video.mp4")),
 
-                AdPageCer = MainActivity.ReadAllBytes(() => assets.Open("ad.com.pfx")),
 
-                MainPageCer = MainActivity.ReadAllBytes(() => assets.Open("main.com.pfx")),
-
-            };
-
-            IPEndPoint endPoint = new IPEndPoint(IPAddress.Loopback, 43433);
-
-            PacServer pacServer = PacServer.Start(new IPEndPoint(IPAddress.Loopback, 59237),
-                PacServer.Create(endPoint, "cn.pornhub.com", "hw-cdn2.adtng.com", "ht-cdn2.adtng.com", "vz-cdn2.adtng.com"),
+            PacServer pacServer = PacServer.Start(ServerInfo.PacServer,
+                PacServer.Create(ServerInfo.ProxyServer, "cn.pornhub.com", "hw-cdn2.adtng.com", "ht-cdn2.adtng.com", "vz-cdn2.adtng.com"),
                 PacServer.Create(new IPEndPoint(IPAddress.Loopback, 80), "www.pornhub.com", "hubt.pornhub.com"));
 
             PornhubProxyInfo info = new PornhubProxyInfo
             {
-                MainPageStreamCreate = Info.CreateLocalStream(new X509Certificate2(source.MainPageCer)),
+                MainPageStreamCreate = Info.CreateLocalStream(new X509Certificate2(ServerInfo.MainPageCer)),
 
-                ADPageStreamCreate = Info.CreateLocalStream(new X509Certificate2(source.AdPageCer)),
+                ADPageStreamCreate = Info.CreateLocalStream(new X509Certificate2(ServerInfo.AdPageCer)),
 
                 RemoteStreamCreate = Info.CreateRemoteStream,
 
                 MaxContentSize = 1024 * 1024 * 5,
 
-                ADVideoBytes = source.AdVideo,
+                ADVideoBytes = ServerInfo.AdVideo,
 
                 CheckingVideoHtml = Info.CheckingVideoHtml,
 
@@ -186,12 +169,7 @@ namespace pornhub.Droid
 
             PornhubProxyServer server = new PornhubProxyServer(info);
 
-            server.Start(endPoint);
-        }
-
-        public override void OnDestroy()
-        {
-            base.OnDestroy();
+            server.Start(ServerInfo.ProxyServer);
         }
 
         public override IBinder OnBind(Intent intent)
@@ -262,7 +240,7 @@ namespace pornhub.Droid
     [Activity(Label = "pornhub", Icon = "@mipmap/icon", Theme = "@style/MainTheme", MainLauncher = true, ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize )]
     public class MainActivity : global::Xamarin.Forms.Platform.Android.FormsAppCompatActivity
     {
-        public static byte[] ReadAllBytes(Func<Stream> func)
+        static byte[] ReadAllBytes(Func<Stream> func)
         {
             using (var stream = func())
             {
@@ -279,6 +257,53 @@ namespace pornhub.Droid
 
                 return buffer;
             }
+        }
+
+        void InitServerInfo()
+        {
+            var assets = this.Assets;
+
+            ServerInfo.AdVideo = MainActivity.ReadAllBytes(() => assets.Open("ad_video.mp4"));
+
+            ServerInfo.AdPageCer = MainActivity.ReadAllBytes(() => assets.Open("ad.com.pfx"));
+
+            ServerInfo.MainPageCer = MainActivity.ReadAllBytes(() => assets.Open("main.com.pfx"));
+
+
+            var ip = Dns.GetHostAddresses(Dns.GetHostName()).FirstOrDefault() ?? IPAddress.Loopback;
+
+            ServerInfo.PacServer = new IPEndPoint(IPAddress.Any, 59237);
+
+            ServerInfo.ExportPacServer = new IPEndPoint(ip, ServerInfo.PacServer.Port);
+
+            ServerInfo.ProxyServer = new IPEndPoint(ip, 43433);
+        }
+
+        EventClicked CreateEventClicked()
+        {
+            return new EventClicked
+            {
+                CopyPacUriTo = () =>
+                {
+                    
+                    
+                    Xamarin.Essentials.Clipboard.SetTextAsync(PacServer.CreatePacUri(ServerInfo.ExportPacServer).AbsoluteUri);
+                },
+
+                Start = () =>
+                {
+                    Intent intent = new Intent(this, typeof(ProxyServer));
+
+                    ServerHelper.StartServer(this, intent);
+                },
+
+                Open = () =>
+                {
+
+                    Browser.OpenAsync("https://cn.pornhub.com/", BrowserLaunchMode.External);
+                },
+
+            };
         }
 
         public const string CHANNEL_ID = "fdfserte54354";
@@ -298,48 +323,11 @@ namespace pornhub.Droid
             global::Xamarin.Forms.Forms.Init(this, savedInstanceState);
 
 
+            InitServerInfo();
+
             ServerHelper.CreateNotificationChannel(this, CHANNEL_ID, CHANNEL_NAME);
 
-            LoadApplication(new App(new EventClicked
-            {
-                CopyPacUriTo = () =>
-                {
-
-                    //Xamarin.Essentials.Clipboard.SetTextAsync(pacServer.ProxyUri.AbsoluteUri);
-                },
-
-                ExportCa = () =>
-                {
-
-                    Permissions.RequestAsync<Permissions.StorageWrite>()
-                    .ContinueWith((task) =>
-                    {
-                        MainThread.BeginInvokeOnMainThread(() =>
-                        {
-                            if (task.Result == PermissionStatus.Granted)
-                            {
-
-                                File.WriteAllBytes(Path.Combine(Android.OS.Environment.ExternalStorageDirectory.AbsolutePath, "pornhubCa.crt"), new X509Certificate2(ReadAllBytes(() => this.Assets.Open("myCA.pfx")), string.Empty, X509KeyStorageFlags.Exportable).Export(X509ContentType.Cert));
-                            }
-
-                        });
-                    });
-                },
-
-                Start = () =>
-                {
-                    Intent intent = new Intent(this, typeof(ProxyServer));
-
-                    ServerHelper.StartServer(this, intent);
-                },
-
-                Open = () =>
-                {
-
-                    Browser.OpenAsync("https://cn.pornhub.com/", BrowserLaunchMode.External);
-                },
-
-            }));    
+            LoadApplication(new App(CreateEventClicked()));    
         }
 
         public override void OnRequestPermissionsResult(int requestCode, string[] permissions, [GeneratedEnum] Android.Content.PM.Permission[] grantResults)

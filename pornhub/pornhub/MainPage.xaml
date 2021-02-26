@@ -5,8 +5,6 @@
     <StackLayout>
         <Button x:Name="m_start"
                 Text="开启服务"></Button>
-        <Button x:Name="m_copyCaCer"
-                Text="将Ca导出到根目录"></Button>
         <Button x:Name="m_copyUri"
                 Text="将代理Uri复制到剪贴板"></Button>
         <Button x:Name="m_open"

@@ -19,9 +19,6 @@ namespace pornhub
     {
         public Action Start { get; set; }
 
-
-        public Action ExportCa { get; set; }
-
         public Action CopyPacUriTo { get; set; }
 
         public Action Open { get; set; }
@@ -38,8 +35,6 @@ namespace pornhub
             InitializeComponent();
 
             m_start.Clicked += (obj, e) => eventClicked.Start();
-
-            m_copyCaCer.Clicked += (obj, e) => eventClicked.ExportCa();
 
             m_copyUri.Clicked += (obj, e) => eventClicked.CopyPacUriTo();
 
