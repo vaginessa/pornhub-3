@@ -6,11 +6,11 @@ namespace pornhub
 {
     public partial class App : Application
     {
-        public App(Source source)
+        public App(EventClicked eventClicked)
         {
             InitializeComponent();
 
-            MainPage = new MainPage(source);
+            MainPage = new MainPage(eventClicked);
         }
 
         protected override void OnStart()

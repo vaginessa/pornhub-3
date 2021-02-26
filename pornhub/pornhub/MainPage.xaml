@@ -3,13 +3,13 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="pornhub.MainPage">
     <StackLayout>
+        <Button x:Name="m_start"
+                Text="开启服务"></Button>
         <Button x:Name="m_copyCaCer"
                 Text="将Ca导出到根目录"></Button>
         <Button x:Name="m_copyUri"
                 Text="将代理Uri复制到剪贴板"></Button>
-        <Button Text="打开浏览器"
-                Clicked="OnOpenBrowser"></Button>
-        <Button Text="打开浏览器(动漫专题网站)"
-                Clicked="OnOpenBrowser_Anime"></Button>
+        <Button x:Name="m_open"
+                Text="打开浏览器"></Button>
     </StackLayout>
 </ContentPage>

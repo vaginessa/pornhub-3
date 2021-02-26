@@ -10,165 +10,40 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using LeiKaiFeng.Http;
-using LeiKaiFeng.Pornhub;
 using System.Linq;
 
 namespace pornhub
 {
 
-    public sealed class Source
+    public sealed class EventClicked
     {
-        //public byte[] MainPageCer { get; set; }
-
-        public byte[] AdPageCer { get; set; }
-
-        public byte[] AdVideo { get; set; }
-
-        public byte[] MainPageCer { get; set; }
-
-        public byte[] CaCer { get; set; }
-
-        public string RootPath { get; set; }
-    }
+        public Action Start { get; set; }
 
 
-    static class Info
-    {
-        public static string ReplaceResponseHtml(string html)
-        {
-            return html;
+        public Action ExportCa { get; set; }
 
-            //return new StringBuilder(html)
-            //    .Replace("ci.", "ei.")
-            //    .Replace("di.", "ei.")
-            //    .ToString();
-        }
+        public Action CopyPacUriTo { get; set; }
 
-        public static bool CheckingVideoHtml(string html)
-        {
-            if (html.Contains("/ev-h.p") ||
-                html.Contains("/ev.p"))
-            {
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
-
-        public static async Task<MHttpStream> CreateRemoteStream()
-        {
-            const string HOST = "www.livehub.com";
-
-            Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-
-            await socket.ConnectAsync(HOST, 443).ConfigureAwait(false);
-
-            SslStream sslStream = new SslStream(new NetworkStream(socket, true), false, (a, b, c, d) => true);
+        public Action Open { get; set; }
 
 
-            await sslStream.AuthenticateAsClientAsync(HOST, null, System.Security.Authentication.SslProtocols.Tls12, false).ConfigureAwait(false);
-
-            return new MHttpStream(socket, sslStream);
-        }
-
-
-
-
-        public static Func<Stream, string, Task<Stream>> CreateLocalStream(X509Certificate certificate)
-        {
-            return async (stream, host) =>
-            {
-
-                SslStream sslStream = new SslStream(stream, false);
-
-                await sslStream.AuthenticateAsServerAsync(certificate).ConfigureAwait(false);
-
-
-                return sslStream;
-            };
-
-        }
     }
 
     public partial class MainPage : ContentPage
     {
 
 
-        public MainPage(Source source)
+        public MainPage(EventClicked eventClicked)
         {
             InitializeComponent();
 
-            
-            IPEndPoint endPoint = new IPEndPoint(IPAddress.Loopback, 43433);
+            m_start.Clicked += (obj, e) => eventClicked.Start();
 
-            PacServer pacServer = PacServer.Start(new IPEndPoint(IPAddress.Loopback, 59237),
-                PacServer.Create(endPoint, "cn.pornhub.com", "hw-cdn2.adtng.com", "ht-cdn2.adtng.com", "vz-cdn2.adtng.com"),
-                PacServer.Create(new IPEndPoint(IPAddress.Loopback, 80), "www.pornhub.com", "hubt.pornhub.com"));
+            m_copyCaCer.Clicked += (obj, e) => eventClicked.ExportCa();
 
-            PornhubProxyInfo info = new PornhubProxyInfo
-            {
-                MainPageStreamCreate = Info.CreateLocalStream(new X509Certificate2(source.MainPageCer)),
+            m_copyUri.Clicked += (obj, e) => eventClicked.CopyPacUriTo();
 
-                ADPageStreamCreate = Info.CreateLocalStream(new X509Certificate2(source.AdPageCer)),
-
-                RemoteStreamCreate = Info.CreateRemoteStream,
-
-                MaxContentSize = 1024 * 1024 * 5,
-
-                ADVideoBytes = source.AdVideo,
-
-                CheckingVideoHtml = Info.CheckingVideoHtml,
-
-                MaxRefreshRequestCount = 30,
-
-                ReplaceResponseHtml = Info.ReplaceResponseHtml,
-
-
-            };
-
-            PornhubProxyServer server = new PornhubProxyServer(info);
-
-
-            server.Start(endPoint);
-
-            m_copyCaCer.Clicked += (obj, e) =>
-            {
-                Permissions.RequestAsync<Permissions.StorageWrite>()
-                .ContinueWith((task) =>
-                {
-                    MainThread.BeginInvokeOnMainThread(() =>
-                    {
-                        if (task.Result == PermissionStatus.Granted)
-                        {
-
-                            File.WriteAllBytes(Path.Combine(source.RootPath, "pornhubCa.crt"), new X509Certificate2(source.CaCer, string.Empty, X509KeyStorageFlags.Exportable).Export(X509ContentType.Cert));
-                        }
-                        else
-                        {
-                            DisplayAlert("消息", "没有存储权限导出失败", "确定");
-                        }
-                    });
-                });
-
-            };
-
-            m_copyUri.Clicked += (obj, e) =>
-            {
-                Xamarin.Essentials.Clipboard.SetTextAsync(pacServer.ProxyUri.AbsoluteUri);
-            };
-        }
-
-        void OnOpenBrowser(object sender, EventArgs e)
-        {
-            Browser.OpenAsync("https://cn.pornhub.com/", BrowserLaunchMode.SystemPreferred);
-        }
-
-        void OnOpenBrowser_Anime(object sender, EventArgs e)
-        {
-            Browser.OpenAsync("https://hanime.xxx/", BrowserLaunchMode.SystemPreferred);
+            m_open.Clicked += (obj, e) => eventClicked.Open();
         }
     }
 }
