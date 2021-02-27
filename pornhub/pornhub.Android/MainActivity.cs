@@ -186,7 +186,7 @@ namespace pornhub.Droid
             if (Build.VERSION.SdkInt >= BuildVersionCodes.O)
             {
                 ((NotificationManager)context.GetSystemService(Context.NotificationService))
-                            .CreateNotificationChannel(new NotificationChannel(channelID, channelName, NotificationImportance.Default));
+                            .CreateNotificationChannel(new NotificationChannel(channelID, channelName, NotificationImportance.Max) { LockscreenVisibility = NotificationVisibility.Public });
             }
         }
 
