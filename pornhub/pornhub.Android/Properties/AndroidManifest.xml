@@ -3,4 +3,5 @@
 	<uses-sdk android:minSdkVersion="26" android:targetSdkVersion="29" />
 	<application android:label="pornhub.Android" android:theme="@style/MainTheme"></application>
 	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 </manifest>
