@@ -20,6 +20,9 @@ using System.Security.Cryptography.X509Certificates;
 using AndroidX.Core.App;
 using System.Linq;
 using System.Security.Authentication;
+using static Android.OS.PowerManager;
+
+[assembly:MetaData("android.webkit.WebView.EnableSafeBrowsing", Value = "false")]
 
 namespace pornhub.Droid
 {
@@ -248,6 +251,8 @@ namespace pornhub.Droid
     {
         const int ID = 345;
 
+        WakeLock m_WakeLock;
+
         public override void OnCreate()
         {
             base.OnCreate();
@@ -259,6 +264,10 @@ namespace pornhub.Droid
 
             StartForeground(ID, func("run"));
 
+            PowerManager powerManager = (PowerManager)GetSystemService(Context.PowerService);
+            m_WakeLock = powerManager.NewWakeLock(WakeLockFlags.Partial,
+                    "MyApp::MyWakelockTag");
+            m_WakeLock.Acquire();
 
             Task.Run(async () =>
             {
@@ -356,6 +365,13 @@ namespace pornhub.Droid
         public override StartCommandResult OnStartCommand(Intent intent, [GeneratedEnum] StartCommandFlags flags, int startId)
         {
             return StartCommandResult.Sticky;
+        }
+
+        public override void OnDestroy()
+        {
+            m_WakeLock.Release();
+
+            base.OnDestroy();
         }
     }
 
