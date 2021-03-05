@@ -15,6 +15,16 @@ using System.Linq;
 namespace pornhub
 {
 
+    static class Info
+    {
+        public static int IwaraPages
+        {
+            get => Preferences.Get(nameof(IwaraPages), 2);
+
+            set => Preferences.Set(nameof(IwaraPages), value);
+        }
+    }
+
     public sealed class EventClicked
     {
         public Action Start { get; set; }
@@ -39,6 +49,19 @@ namespace pornhub
             m_copyUri.Clicked += (obj, e) => eventClicked.CopyPacUriTo();
 
             m_open.Clicked += (obj, e) => eventClicked.Open();
+
+
+
+        }
+
+        private void OnIwara(object sender, EventArgs e)
+        {
+            var info = new IwaraPageInfo(Info.IwaraPages);
+
+            Navigation.PushModalAsync(new IwaraPage(info));
+
+
+            info.Task.ContinueWith((t) => Info.IwaraPages = t.Result);
         }
     }
 }

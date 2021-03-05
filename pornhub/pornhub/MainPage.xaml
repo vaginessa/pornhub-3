@@ -9,5 +9,7 @@
                 Text="将代理Uri复制到剪贴板"></Button>
         <Button x:Name="m_open"
                 Text="打开浏览器"></Button>
+        <Button Text="Iwara"
+                Clicked="OnIwara"></Button>
     </StackLayout>
 </ContentPage>
