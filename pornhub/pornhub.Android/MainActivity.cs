@@ -21,108 +21,14 @@ using AndroidX.Core.App;
 using System.Linq;
 using System.Security.Authentication;
 using static Android.OS.PowerManager;
+using static Xamarin.Essentials.Permissions;
 
 [assembly:MetaData("android.webkit.WebView.EnableSafeBrowsing", Value = "false")]
 
 namespace pornhub.Droid
 {
 
-    public sealed class SniProxyInfo
-    {
-        public SniProxyInfo(IPEndPoint iPEndPoint, Func<Stream, string, Task<Stream>> createLocalStream, Func<Task<Stream>> createRemoteStream)
-        {
-            IPEndPoint = iPEndPoint;
-            CreateLocalStream = createLocalStream;
-            CreateRemoteStream = createRemoteStream;
-        }
-
-        public IPEndPoint IPEndPoint { get; }
-
-
-        public Func<Stream, string, Task<Stream>> CreateLocalStream { get; }
-
-        public Func<Task<Stream>> CreateRemoteStream { get; }
-
-    }
-
-    public sealed class SniProxy
-    {
-        SniProxyInfo m_info;
-
-
-        public SniProxy(SniProxyInfo info)
-        {
-            m_info = info;
-        }
-
-
-        static async Task CatchAsync(Task task)
-        {
-            try
-            {
-                await task.ConfigureAwait(false);
-            }
-            catch (Exception e)
-            {
-
-            }
-        }
-
-        async Task Connect(Stream left_stream)
-        {
-            Stream right_stream;
-
-            left_stream = await LeiKaiFeng.Proxys.ConnectHelper.ReadConnectRequestAsync(left_stream, m_info.CreateLocalStream).Unwrap().ConfigureAwait(false);
-
-            right_stream = await m_info.CreateRemoteStream().ConfigureAwait(false);
-
-
-
-            var t1 = left_stream.CopyToAsync(right_stream, 2048);
-
-            var t2 = right_stream.CopyToAsync(left_stream);
-
-            await Task.WhenAny(t1, t2).ConfigureAwait(false);
-
-
-            left_stream.Close();
-
-            right_stream.Close();
-
-            CatchAsync(t1);
-
-            CatchAsync(t2);
-        }
-
-        public Task Start()
-        {
-            Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-
-
-            socket.Bind(m_info.IPEndPoint);
-
-            socket.Listen(6);
-
-
-            return Task.Run(async () =>
-            {
-                while (true)
-                {
-                    var connent = await socket.AcceptAsync().ConfigureAwait(false);
-
-                    Task task = Task.Run(() => Connect(new NetworkStream(connent, true)));
-                }
-            });
-        }
-
-
-
-    }
-
-
-
-
-    static class Connect
+    static class PornhubHelper
     {
         public static string ReplaceResponseHtml(string html)
         {
@@ -148,89 +54,19 @@ namespace pornhub.Droid
         }
 
 
-        public static Func<Task<T>> CreateRemoteStream<T>(string host, int port, string sni, Func<Socket, SslStream, T> func, SslProtocols sslProtocols = SslProtocols.None)
-        {
-            return async () =>
-            {
-                Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
-                await socket.ConnectAsync(host, port).ConfigureAwait(false);
-
-                SslStream sslStream = new SslStream(new NetworkStream(socket, true), false);
-
-
-                var info = new SslClientAuthenticationOptions()
-                {
-                    RemoteCertificateValidationCallback = (a, b, c, d) => true,
-
-                    EnabledSslProtocols = sslProtocols,
-
-                    TargetHost = sni
-                };
-
-                await sslStream.AuthenticateAsClientAsync(info, default).ConfigureAwait(false);
-
-                return func(socket, sslStream);
-            };
-
-
-
-        }
-
-        public static Func<Stream, string, Task<Stream>> CreateLocalStream(X509Certificate certificate, SslProtocols sslProtocols = SslProtocols.None)
-        {
-            return async (stream, host) =>
-            {
-                SslStream sslStream = new SslStream(stream, false);
-
-                var info = new SslServerAuthenticationOptions()
-                {
-                    ServerCertificate = certificate,
-
-                    EnabledSslProtocols = sslProtocols
-                };
-
-                await sslStream.AuthenticateAsServerAsync(info, default).ConfigureAwait(false);
-
-
-                return sslStream;
-            };
-
-        }
-
-
-        public static Func<Stream, string, Task<Stream>> CreateDnsLocalStream()
-        {
-            return (stream, host) => Task.FromResult(stream);
-        }
-
-
-        public static Func<Task<Stream>> CreateDnsRemoteStream(string host, int port)
-        {
-            return async () =>
-            {
-                Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-
-                await socket.ConnectAsync(host, port).ConfigureAwait(false);
-
-                return new NetworkStream(socket, true);
-            };
-        }
     }
-
-
-
-
 
     public static class ServerInfo
     {
-        public static byte[] AdPageCer { get; set; }
+        
+        public static byte[] CaCert { get; set; }
 
         public static byte[] AdVideo { get; set; }
 
-        public static byte[] MainPageCer { get; set; }
+        public static byte[] AdCert { get; set; }
 
-        public static byte[] IwaraCer { get; set; }
+        public static byte[] PornCert { get; set; }
 
         public static IPEndPoint PacServerEndPoint { get; set; }
 
@@ -301,57 +137,67 @@ namespace pornhub.Droid
             var pacListensEndPoint = ServerInfo.PacServerEndPoint;
             var adErrorEndpoint = ServerInfo.ADErrorEndPoint;
             var iwaraLsitensPoint = ServerInfo.IwaraProxyEndPoint;
-
-
-            var mainCert = new X509Certificate2(ServerInfo.MainPageCer);
-            var adCert = new X509Certificate2(ServerInfo.AdPageCer);
-            var iwaraCert = new X509Certificate2(ServerInfo.IwaraCer);
             var adVido = ServerInfo.AdVideo;
+            var caFile = ServerInfo.CaCert;
 
 
-            PacServer pacServer = PacServer.Start(pacListensEndPoint,
-                PacHelper.Create((host) => host == "www.pornhub.com", ProxyMode.CreateHTTP(adErrorEndpoint)),
-                PacHelper.Create((host) => host == "hubt.pornhub.com", ProxyMode.CreateHTTP(adErrorEndpoint)),
-                PacHelper.Create((host) => host == "ajax.googleapis.com", ProxyMode.CreateHTTP(adErrorEndpoint)),
-                PacHelper.Create((host) => PacMethod.dnsDomainIs(host, "pornhub.com"), ProxyMode.CreateHTTP(pornhubListensEndPoint)),
-                PacHelper.Create((host) => PacMethod.dnsDomainIs(host, "adtng.com"), ProxyMode.CreateHTTP(pornhubListensEndPoint)),
-                PacHelper.Create((host) => PacMethod.dnsDomainIs(host, IWARA_HOST), ProxyMode.CreateHTTP(iwaraLsitensPoint)));
 
 
-            
+
+
+            var mainCert = new X509Certificate2(ServerInfo.PornCert);
+            var adCert = new X509Certificate2(ServerInfo.AdCert);
+           
+
+            PacServer.Builder.Create(pacListensEndPoint)
+                .Add((host) => host == "www.pornhub.com", ProxyMode.CreateHTTP(adErrorEndpoint))
+                .Add((host) => host == "hubt.pornhub.com", ProxyMode.CreateHTTP(adErrorEndpoint))
+                .Add((host) => host == "ajax.googleapis.com", ProxyMode.CreateHTTP(adErrorEndpoint))
+                .Add((host) => PacMethod.dnsDomainIs(host, "pornhub.com"), ProxyMode.CreateHTTP(pornhubListensEndPoint))
+                .Add((host) => PacMethod.dnsDomainIs(host, "adtng.com"), ProxyMode.CreateHTTP(pornhubListensEndPoint))
+                .Add((host) => host == "i.iwara.tv", ProxyMode.CreateDIRECT())
+                .Add((host) => PacMethod.dnsDomainIs(host, IWARA_HOST), ProxyMode.CreateHTTP(iwaraLsitensPoint))
+                .StartPACServer();
+
             PornhubProxyInfo info = new PornhubProxyInfo
             {
-                MainPageStreamCreate = Connect.CreateLocalStream(new X509Certificate2(mainCert), SslProtocols.Tls12),
+                MainPageStreamCreate = ConnectHelper.CreateLocalStream(new X509Certificate2(mainCert), SslProtocols.Tls12),
 
-                ADPageStreamCreate = Connect.CreateLocalStream(new X509Certificate2(adCert), SslProtocols.Tls12),
+                ADPageStreamCreate = ConnectHelper.CreateLocalStream(new X509Certificate2(adCert), SslProtocols.Tls12),
 
-                RemoteStreamCreate = Connect.CreateRemoteStream(PORNHUB_HOST, 443, PORNHUB_HOST, (a, b) => new MHttpStream(a, b), SslProtocols.Tls12),
+                RemoteStreamCreate = ConnectHelper.CreateRemoteStream(PORNHUB_HOST, 443, PORNHUB_HOST, (a, b) => new MHttpStream(a, b), SslProtocols.Tls12),
 
                 MaxContentSize = 1024 * 1024 * 5,
 
                 ADVideoBytes = adVido,
 
-                CheckingVideoHtml = Connect.CheckingVideoHtml,
+                CheckingVideoHtml = PornhubHelper.CheckingVideoHtml,
 
                 MaxRefreshRequestCount = 30,
 
-                ReplaceResponseHtml = Connect.ReplaceResponseHtml,
+                ReplaceResponseHtml = PornhubHelper.ReplaceResponseHtml,
 
+                ListenIPEndPoint = pornhubListensEndPoint
             };
 
-            PornhubProxyServer server = new PornhubProxyServer(info);
 
+            Task t1 = PornhubProxyServer.Start(info).Task;
 
-            Task t1 = server.Start(pornhubListensEndPoint);
+            TunnelProxyInfo iwaraSniInfo = new TunnelProxyInfo()
+            {
+                ListenIPEndPoint = iwaraLsitensPoint,
+                CreateLocalStream = ConnectHelper.CreateDnsLocalStream(),
+                CreateRemoteStream = ConnectHelper.CreateDnsRemoteStream(
+                    443,
+                    "104.26.12.12",
+                    "104.20.201.232",
+                    "104.24.48.227",
+                    "104.22.27.126",
+                    "104.24.53.193")
+            };
 
-            SniProxyInfo iwaraSniInfo = new SniProxyInfo(
-                 iwaraLsitensPoint,
-                 Connect.CreateDnsLocalStream(),
-                 Connect.CreateDnsRemoteStream("104.20.27.25", 443));
+            Task t2 = TunnelProxy.Start(iwaraSniInfo).Task;
 
-            SniProxy iwaraSniProxy = new SniProxy(iwaraSniInfo);
-
-            Task t2 = iwaraSniProxy.Start();
 
         }
 
@@ -462,11 +308,12 @@ namespace pornhub.Droid
 
             ServerInfo.AdVideo = MainActivity.ReadAllBytes(() => assets.Open("ad_video.mp4"));
 
-            ServerInfo.AdPageCer = MainActivity.ReadAllBytes(() => assets.Open("ad.com.pfx"));
 
-            ServerInfo.MainPageCer = MainActivity.ReadAllBytes(() => assets.Open("main.com.pfx"));
+            ServerInfo.PornCert = ReadAllBytes(() => assets.Open("main.com.pfx"));
 
-            ServerInfo.IwaraCer = MainActivity.ReadAllBytes(() => assets.Open("iwara.pfx"));
+            ServerInfo.AdCert = ReadAllBytes(() => assets.Open("ad.com.pfx"));
+
+            ServerInfo.CaCert = ReadAllBytes(() => assets.Open("myCA.pfx"));
 
             var ip = Dns.GetHostAddresses(Dns.GetHostName()).FirstOrDefault() ?? IPAddress.Loopback;
 
@@ -524,12 +371,43 @@ namespace pornhub.Droid
             Xamarin.Essentials.Platform.Init(this, savedInstanceState);
             global::Xamarin.Forms.Forms.Init(this, savedInstanceState);
 
+            Xamarin.Essentials.Permissions.RequestAsync<StorageWrite>();
+
+            AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+
+            TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
+
+
+            AndroidEnvironment.UnhandledExceptionRaiser += AndroidEnvironment_UnhandledExceptionRaiser;
 
             InitServerInfo();
 
             ServerHelper.CreateNotificationChannel(this, CHANNEL_ID, CHANNEL_NAME);
 
             LoadApplication(new App(CreateEventClicked()));    
+        }
+
+
+        static void TaskScheduler_UnobservedTaskException(object sender, UnobservedTaskExceptionEventArgs e)
+        {
+            Log("TaskScheduler", e.Exception);
+        }
+
+        static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            Log("Domain", e.ExceptionObject);
+        }
+
+        static void AndroidEnvironment_UnhandledExceptionRaiser(object sender, RaiseThrowableEventArgs e)
+        {
+            Log("Android", e.Exception);
+        }
+
+        static void Log(string name, object e)
+        {
+            string s = System.Environment.NewLine;
+
+            File.AppendAllText($"/storage/emulated/0/pornhub.{name}.txt", $"{s}{s}{s}{s}{DateTime.Now}{s}{e}", System.Text.Encoding.UTF8);
         }
 
         public override void OnRequestPermissionsResult(int requestCode, string[] permissions, [GeneratedEnum] Android.Content.PM.Permission[] grantResults)
