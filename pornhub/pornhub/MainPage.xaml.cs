@@ -51,7 +51,7 @@ namespace pornhub
             m_open.Clicked += (obj, e) => eventClicked.Open();
 
 
-
+            m_pagesInput.Text = Info.IwaraPages.ToString();
         }
 
         private void OnIwara(object sender, EventArgs e)
@@ -61,7 +61,15 @@ namespace pornhub
             Navigation.PushModalAsync(new IwaraPage(info));
 
 
-            info.Task.ContinueWith((t) => Info.IwaraPages = t.Result);
+            info.Task.ContinueWith((t) =>
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    m_pagesInput.Text = t.Result.ToString();
+
+                    Info.IwaraPages = t.Result;
+                });
+            });
         }
     }
 }

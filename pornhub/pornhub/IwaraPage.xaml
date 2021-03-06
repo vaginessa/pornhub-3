@@ -10,7 +10,8 @@
                         ItemsUpdatingScrollMode="KeepLastItemInView">
         <CollectionView.ItemTemplate>
             <DataTemplate x:DataType="data:DateBind">
-                <Image
+                <Image WidthRequest="220"
+                       HeightRequest="150"
                        Source="{Binding ImageSource}"></Image>
             </DataTemplate>
         </CollectionView.ItemTemplate>

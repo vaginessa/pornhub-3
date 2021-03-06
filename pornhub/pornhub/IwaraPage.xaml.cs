@@ -18,28 +18,35 @@ using Xamarin.Essentials;
 
 namespace pornhub
 {
-    public sealed class HtmlPageData
-    {
-        public HtmlPageData(Uri uri, Uri imgUri, string title)
-        {
-            Uri = uri;
-            ImgUri = imgUri;
-            Title = title;
-        }
-
-        public Uri Uri { get; }
-
-        public Uri ImgUri { get; }
-
-        public string Title { get; }
-
-    }
-
+    
     public sealed class Load
     {
+
+        sealed class HtmlPageData
+        {
+            public HtmlPageData(Uri uri, Uri imgUri, string title)
+            {
+                Uri = uri;
+                ImgUri = imgUri;
+                Title = title;
+            }
+
+            public Uri Uri { get; }
+
+            public Uri ImgUri { get; }
+
+            public string Title { get; }
+
+        }
+
+
         readonly Regex m_regex = new Regex(@"<a href=""([^""]+)""><img src=""([^""]+)"" width=""\d{3}"" height=""\d{3}"" alt=""([^""]+)""");
 
         const string HOST_URI = "https://ecchi.iwara.tv";
+
+        const string SNI_HOST = "iwara.tv";
+
+        const string DNS_HOST = "konachan.com";
 
         static Uri CreteNextUri(int n)
         {
@@ -52,6 +59,7 @@ namespace pornhub
             var list = new List<HtmlPageData>();
 
             var coll = m_regex.Matches(html);
+            
             for (int i = 0; i < coll.Count; i++)
             {
                 Match match = coll[i];
@@ -71,26 +79,44 @@ namespace pornhub
         }
 
 
+        
+
         async Task LoadData(ChannelWriter<DateBind> writer, MHttpClient load, Func<Uri> func)
         {
-            string html = await load.GetStringAsync(func(), default).ConfigureAwait(false);
-
-
-            foreach (var item in CreateHtmlPageData(html))
+            async Task AddDate(string html)
             {
+                foreach (var item in CreateHtmlPageData(html))
+                {
 
+                    try
+                    {
+
+                        byte[] buffer = await load.GetByteArrayAsync(item.ImgUri, item.Uri, default).ConfigureAwait(false);
+
+                        await writer.WriteAsync(new DateBind(
+                            ImageSource.FromStream(() => new MemoryStream(buffer)),
+                            item.Title,
+                            item.Uri)).ConfigureAwait(false);
+
+
+
+                    }
+                    catch (MHttpClientException)
+                    {
+
+                    }
+                }
+            }
+
+
+            while (true)
+            {
                 try
                 {
 
-                    byte[] buffer = await load.GetByteArrayAsync(item.ImgUri, item.Uri, default).ConfigureAwait(false);
+                    string html = await load.GetStringAsync(func(), default).ConfigureAwait(false);
 
-                    await writer.WriteAsync(new DateBind(
-                        ImageSource.FromStream(() => new MemoryStream(buffer)),
-                        item.Title,
-                        item.Uri)).ConfigureAwait(false);
-
-
-
+                    await AddDate(html).ConfigureAwait(false);
                 }
                 catch (MHttpClientException)
                 {
@@ -100,8 +126,10 @@ namespace pornhub
                 {
                     return;
                 }
+                
+            }
 
-            }            
+                      
         }
 
         public ChannelReader<DateBind> Reader { get; private set; }
@@ -115,26 +143,24 @@ namespace pornhub
             var channel = Channel.CreateBounded<DateBind>(itemCount);
 
 
-            Func<Uri> func = () => CreteNextUri(Interlocked.Increment(ref pages));
+            Func<Uri> getnexturi = () => CreteNextUri(Interlocked.Increment(ref pages));
 
            
-
-
-            var load = new Load();
             MHttpClient htmlLoad = new MHttpClient(new MHttpClientHandler
             {
                 StreamCallback = MHttpClientHandler.CreateNewConnectAsync(
-                     MHttpClientHandler.CreateCreateConnectAsyncFunc("konachan.com", 443),
+                     MHttpClientHandler.CreateCreateConnectAsyncFunc(DNS_HOST, 443),
 
-                     MHttpClientHandler.CreateCreateAuthenticateAsyncFunc("iwara.tv", false)
+                     MHttpClientHandler.CreateCreateAuthenticateAsyncFunc(SNI_HOST, false)
                      )
             });
 
 
+            var load = new Load();
 
             foreach (var item in Enumerable.Range(0, taskCount))
             {
-                Task.Run(() => load.LoadData(channel, htmlLoad, func));
+                Task.Run(() => load.LoadData(channel, htmlLoad, getnexturi));
             }
 
             return new Load()
@@ -202,24 +228,25 @@ namespace pornhub
 
         IwaraPageInfo m_info;
 
+        ManualResetEventSlim m_event = new ManualResetEventSlim(true);
+
+        ObservableCollection<DateBind> m_coll = new ObservableCollection<DateBind>();
+
         public IwaraPage(IwaraPageInfo info)
         {
             InitializeComponent();
 
+            SetClo(2);
+
+            m_event.Set();
 
             DeviceDisplay.KeepScreenOn = true;
 
-
-            var coll = new ObservableCollection<DateBind>();
-
-            m_collectionView.ItemsSource = coll;
-
-            SetClo(2);
-
-            m_load = Load.Create(6, 80, info.Pages);
+            m_collectionView.ItemsSource = m_coll;
+            
+            m_load = Load.Create(6, 120, info.Pages);
 
             m_info = info;
-
 
             Task.Run(async () =>
             {
@@ -228,22 +255,35 @@ namespace pornhub
 
                 while (true)
                 {
-                    var item = await read.ReadAsync().ConfigureAwait(false);
-
-                    MainThread.BeginInvokeOnMainThread(() =>
+                    try
                     {
-                        coll.Add(item);
 
+                        m_event.Wait();
 
-                    });
+                        var item = await read.ReadAsync().ConfigureAwait(false);
 
-                    await Task.Delay(new TimeSpan(0, 0, 1));
+                        MainThread.BeginInvokeOnMainThread(() =>
+                        {
+                            if (m_coll.Count >= 400)
+                            {
+                                m_coll.Clear();
+                            }
+
+                            m_coll.Add(item);
+                        });
+
+                        await Task.Delay(new TimeSpan(0, 0, 1));
+                    }
+                    catch (ChannelClosedException)
+                    {
+                        return;
+                    }
+
                 }
             });
-
         }
 
-       void SetClo(int viewColumn)
+        void SetClo(int viewColumn)
         {
             var v = new GridItemsLayout(viewColumn, ItemsLayoutOrientation.Vertical)
             {
@@ -261,20 +301,40 @@ namespace pornhub
 
             m_info.Set(m_load.PageFunc());
 
+            m_event.Set();
+
+            DeviceDisplay.KeepScreenOn = false;
+
+
             return base.OnBackButtonPressed();
         }
 
         private void OnScrolled(object sender, ItemsViewScrolledEventArgs e)
         {
+            long n = (long)e.VerticalDelta;
 
+            if (n != 0)
+            {
+                if (n < 0)
+                {
+                    m_event.Reset();
+
+                }
+                else if (n > 0 && e.LastVisibleItemIndex + 1 == m_coll.Count)
+                {
+                    m_event.Set();
+
+                }
+            }
         }
 
         private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if(m_collectionView.SelectedItem is DateBind date)
             {
+                m_event.Reset();
 
-                Xamarin.Essentials.Clipboard.SetTextAsync(date.Uri.AbsoluteUri);
+                Xamarin.Essentials.Browser.OpenAsync(date.Uri.AbsoluteUri, BrowserLaunchMode.External);
             }
 
         }
